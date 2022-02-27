@@ -1,2 +1,2 @@
-# Super-Mario-AC
-An Actor-Critic Reinforcement Learning model learning to play Super Mario Bros
+# Super-Mario-RL
+Reinforcement Learning models learning to play Super Mario Bros
