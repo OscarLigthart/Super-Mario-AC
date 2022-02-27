@@ -4,6 +4,7 @@
 # Desc: The policy used in the SAC algorithms
 #
 ################################################
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -46,11 +47,12 @@ class ActorCritic(nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         x = F.relu(self.conv4(x))
-        hx, cx = self.lstm(x.view(x.size(0), -1), (hx, cx))
+
+        x = torch.flatten(x, start_dim=1)
+        hx, cx = self.lstm(x, (hx, cx))
 
         # run the forward pass for the actor
-        actor_x = self.actor_linear(hx)
-        actor_out = F.softmax(actor_x, 1)
+        actor_out = self.actor_linear(hx)
 
         # run the forward pass for the critic
         critic_out = self.critic_linear(hx)

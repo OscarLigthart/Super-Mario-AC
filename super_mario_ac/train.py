@@ -38,6 +38,7 @@ def train(args):
 
     # create the environment
     env = create_env(1, 1, "simple")
+    torch.autograd.set_detect_anomaly(True)
 
     # get environment variables
     num_inputs = env.observation_space.shape[0]
@@ -49,6 +50,7 @@ def train(args):
     # initialize algorithm
     a2c = A2C(actor_critic, args)
 
+    # initialize entropy term
     entropy_term = 0
 
     for episode in range(args.num_episodes):
@@ -56,7 +58,7 @@ def train(args):
         values = []
         rewards = []
 
-        state = env.reset()
+        state = torch.from_numpy(env.reset())
 
         # run episode
         for steps in range(args.num_steps):
@@ -70,11 +72,11 @@ def train(args):
             # keep track of episode variables
             rewards.append(reward)
             values.append(value)
-            log_probs.append(log_prob)
+            log_probs.append(log_prob[0, action])
             entropy_term += entropy
 
             # overwrite state
-            state = new_state
+            state = torch.from_numpy(new_state)
 
             # render the environment
             env.render()

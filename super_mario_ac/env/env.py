@@ -27,4 +27,4 @@ def create_env(world, stage, action_type, output_path=None):
     env = JoypadSpace(env, actions)
     env = CustomReward(env, None)
     env = CustomSkipFrame(env)
-    return env, env.observation_space.shape[0], len(actions)
+    return env
