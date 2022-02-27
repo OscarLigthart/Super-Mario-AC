@@ -11,10 +11,10 @@ from nes_py.wrappers import JoypadSpace
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, RIGHT_ONLY
 
 
-from .wrappers import CustomReward, CustomSkipFrame
+from .wrappers import MaxAndSkipEnv, ProcessFrame84, ImageToPyTorch, BufferWrapper, ScaledFloatFrame
 
 
-def create_env(world, stage, action_type, output_path=None):
+def create_env(world, stage, action_type):
     env = gym_super_mario_bros.make("SuperMarioBros-{}-{}-v0".format(world, stage))
 
     if action_type == "right":
@@ -24,7 +24,10 @@ def create_env(world, stage, action_type, output_path=None):
     else:
         actions = COMPLEX_MOVEMENT
 
-    env = JoypadSpace(env, actions)
-    env = CustomReward(env, None)
-    env = CustomSkipFrame(env)
-    return env
+    env = MaxAndSkipEnv(env)
+    env = ProcessFrame84(env)
+    env = ImageToPyTorch(env)
+    env = BufferWrapper(env, 4)
+    env = ScaledFloatFrame(env)
+    return JoypadSpace(env, actions)
+

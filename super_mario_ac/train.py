@@ -9,7 +9,7 @@ import torch
 import numpy as np
 import argparse
 from env.env import create_env
-from algorithms import A2C
+from agent import Agent
 from models import ActorCritic
 
 
@@ -18,10 +18,13 @@ def get_args():
     parser.add_argument("--world", type=int, default=1)
     parser.add_argument("--stage", type=int, default=1)
     parser.add_argument("--action_type", type=str, default="complex")
-    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--lr', type=float, default=2.5e-4)
     parser.add_argument('--gamma', type=float, default=0.9, help='discount factor for rewards')
-    parser.add_argument('--tau', type=float, default=1.0, help='parameter for GAE')
-    parser.add_argument('--beta', type=float, default=0.01, help='entropy coefficient')
+    parser.add_argument('--batch_size', type=int, default=32, help='batch size used for training')
+    parser.add_argument('--exploration_max', type=float, default=1.0, help='determine max fraction of exploration')
+    parser.add_argument('--exploration_min', type=float, default=0.02, help='determine min fraction of exploration')
+    parser.add_argument('--exploration_decay', type=float, default=0.99, help='decay rate of the exploration')
+    parser.add_argument('--memory_size', type=int, default=30000, help='The maximum size of the replay buffer')
     parser.add_argument("--num_episodes", type=int, default=10000, help="number of episodes")
     parser.add_argument("--num_steps", type=int, default=1000, help="max number of steps per episode")
 
@@ -43,51 +46,50 @@ def train(args):
     num_inputs = env.observation_space.shape[0]
     num_actions = env.action_space.n
 
-    # initialize Actor-Critic model
-    actor_critic = ActorCritic(num_inputs, num_actions)
+    # initialize agent
+    agent = Agent(num_inputs, num_actions, args)
 
-    # initialize algorithm
-    a2c = A2C(actor_critic, args)
-
+    # run for selected amount of episodes
     for episode in range(args.num_episodes):
-        log_probs = []
-        values = []
-        rewards = []
 
-        # initialize entropy term
-        entropy_term = 0
+        # retrieve starting state from env
+        state = torch.Tensor([env.reset()])
 
-        state = torch.from_numpy(env.reset())
+        # keep track of values
+        total_reward = 0
+        steps = 0
 
         # run episode
         for steps in range(args.num_steps):
 
-            # select an action according to the a2c algorithm
-            action, value, log_prob, entropy = a2c.select_action(state)
+            # allow the agent to act
+            action = agent.act(state)
 
             # perform this action in the environment
-            new_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _ = env.step(action)
 
-            # keep track of episode variables
-            rewards.append(reward)
-            values.append(value)
-            log_probs.append(log_prob)
-            entropy_term += entropy
+            total_reward += reward
+            next_state = torch.Tensor([next_state])
+            reward = torch.Tensor([reward]).unsqueeze(0)
+            done = torch.Tensor([int(done)]).unsqueeze(0)
+
+            # make sure the agent remembers this experience
+            agent.remember(state, action, reward, next_state, done)
+
+            # run experience replay - This is where the learning happens
+            loss = agent.experience_replay()
 
             # overwrite state
-            state = torch.from_numpy(new_state)
+            state = next_state
 
             # render the environment
-            # env.render()
+            env.render()
 
             if done or steps == args.num_steps - 1:
                 # todo print some information here
                 break
 
-        # after an episode we need to update the parameters
-        actor_loss, critic_loss = a2c.update(state, values, rewards, log_probs, entropy_term)
-
-        print(f"Episode {episode} \t - Reward: {sum(rewards)} \t - Actor loss {actor_loss} \t - Critic loss {critic_loss}")
+        print(f"Episode {episode} \t - Reward: {total_reward} \t - Loss: {loss}")
 
     return
 
