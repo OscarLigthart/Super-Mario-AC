@@ -10,14 +10,13 @@ import numpy as np
 import argparse
 from env.env import create_env
 from agent import Agent
-from models import ActorCritic
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--world", type=int, default=1)
     parser.add_argument("--stage", type=int, default=1)
-    parser.add_argument("--action_type", type=str, default="complex")
+    parser.add_argument("--action_type", type=str, default="right")
     parser.add_argument('--lr', type=float, default=2.5e-4)
     parser.add_argument('--gamma', type=float, default=0.9, help='discount factor for rewards')
     parser.add_argument('--batch_size', type=int, default=32, help='batch size used for training')
@@ -43,7 +42,7 @@ def train(args):
     env = create_env(1, 1, args.action_type)
 
     # get environment variables
-    num_inputs = env.observation_space.shape[0]
+    num_inputs = env.observation_space.shape
     num_actions = env.action_space.n
 
     # initialize agent
@@ -57,7 +56,6 @@ def train(args):
 
         # keep track of values
         total_reward = 0
-        steps = 0
 
         # run episode
         for steps in range(args.num_steps):
@@ -66,7 +64,7 @@ def train(args):
             action = agent.act(state)
 
             # perform this action in the environment
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _ = env.step(int(action[0]))
 
             total_reward += reward
             next_state = torch.Tensor([next_state])

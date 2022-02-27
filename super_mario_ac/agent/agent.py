@@ -4,7 +4,7 @@ import torch.nn as nn
 import random
 
 from .memory import ReplayMemory
-from ..models.DQN import DQN
+from .DQN import DQN
 
 
 class Agent:
@@ -96,16 +96,20 @@ class Agent:
         if self.step % self.copy == 0:
             self.copy_model()
 
+        # only run if we have saved up enough experience
         if len(self.memory) < self.params.batch_size:
             return
 
-        state, action, reward, next_state, done = self.memory.sample(self.params.batch_size)
+        # sample transitions
+        transitions = self.memory.sample(self.params.batch_size)
+        state, action, reward, next_state, done = zip(*transitions)
 
-        state = state.to(self.device)
-        action = action.to(self.device)
-        reward = reward.to(self.device)
-        next_state = next_state.to(self.device)
-        done = done.to(self.device)
+        # push transition to device
+        state = torch.stack(state, dim=0).squeeze(1).to(self.device)
+        action = torch.stack(action, dim=0).squeeze(1).to(self.device)
+        reward = torch.stack(reward, dim=0).squeeze(1).to(self.device)
+        next_state = torch.stack(next_state, dim=0).squeeze(1).to(self.device)
+        done = torch.stack(done, dim=0).squeeze(1).to(self.device)
 
         self.optimizer.zero_grad()
 
