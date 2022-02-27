@@ -19,7 +19,7 @@ class ActorCritic(nn.Module):
         self.lstm = nn.LSTMCell(32 * 6 * 6, 512)
         self.critic_linear = nn.Linear(512, 1)
         self.actor_linear = nn.Linear(512, num_actions)
-        self._initialize_weights()
+        # self._initialize_weights()
 
     def _initialize_weights(self):
         """
@@ -52,7 +52,8 @@ class ActorCritic(nn.Module):
         hx, cx = self.lstm(x, (hx, cx))
 
         # run the forward pass for the actor
-        actor_out = self.actor_linear(hx)
+        actor_x = self.actor_linear(hx)
+        actor_out = F.softmax(actor_x, dim=1)
 
         # run the forward pass for the critic
         critic_out = self.critic_linear(hx)

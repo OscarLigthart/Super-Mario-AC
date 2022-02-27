@@ -61,17 +61,17 @@ class A2C:
         # run a forward pass to get an action
         policy, value, self.h_0, self.c_0 = self.actor_critic.forward(state, self.h_0, self.c_0)
 
+        value = value.detach().cpu().numpy()[0,0]
+        dist = policy.detach().cpu().numpy()
+
+        # extract LSTM data
         self.h_0 = self.h_0.data
         self.c_0 = self.c_0.data
 
-        # calculate action probabilites, log probabilities and entropy
-        prob = F.softmax(policy, dim=1)
-        log_prob = F.log_softmax(policy, dim=1)
-        entropy = -(policy * log_prob).sum(1, keepdim=True)
-
-        # sample an action
-        m = Categorical(prob)
-        action = m.sample().item()
+        # calculate action, log prob and entropy
+        action = np.random.choice(len(dist[0]), p=np.squeeze(dist))
+        log_prob = torch.log(policy.squeeze(0)[action])
+        entropy = -np.sum(np.mean(dist) * np.log(dist))
 
         return action, value, log_prob, entropy
 
@@ -81,26 +81,52 @@ class A2C:
         :return:
         """
 
-        # extract the Qval of the final state
-        _, Qval, _, _ = self.select_action(final_state)
+        # # extract the Qval of the final state
+        # _, Qval, _, _ = self.select_action(final_state)
+        #
+        # # compute Q values
+        # Qvals = np.zeros_like(values).astype(np.float)
+        # for t in reversed(range(len(rewards))):
+        #     Qval = rewards[t] + self.args.gamma * Qval
+        #     Qvals[t] = Qval
+        #
+        # # update actor critic
+        # values = torch.FloatTensor(values).to(self.device)
+        # Qvals = torch.FloatTensor(Qvals).to(self.device)
+        # log_probs = torch.stack(log_probs).to(self.device)
+        #
+        # advantage = Qvals - values
+        # actor_loss = (-log_probs * advantage).mean()
+        # critic_loss = 0.5 * advantage.pow(2).mean()
+        # ac_loss = actor_loss + critic_loss + 0.001 * entropy_term
+        #
+        # self.optimizer.zero_grad()
+        # ac_loss.backward()
+        # self.optimizer.step()
 
-        # compute Q values
-        Qvals = np.zeros_like(values).astype(np.float)
-        for t in reversed(range(len(rewards))):
-            Qval = rewards[t] + self.args.gamma * Qval
-            Qvals[t] = Qval
+        R = torch.zeros((1, 1), dtype=torch.float)
+        R = R.cuda()
+        final_state = final_state.to(self.device)
 
-        # update actor critic
-        values = torch.FloatTensor(values).to(self.device)
-        Qvals = torch.FloatTensor(Qvals).to(self.device)
-        log_probs = torch.stack(log_probs).to(self.device)
+        _, R, _, _ = self.actor_critic(final_state, self.h_0, self.c_0)
 
-        advantage = Qvals - values
-        actor_loss = (-log_probs * advantage).mean()
-        critic_loss = 0.5 * advantage.pow(2).mean()
-        ac_loss = actor_loss + critic_loss + 0.001 * entropy_term
+        gae = torch.zeros((1, 1), dtype=torch.float)
+        gae = gae.cuda()
+        actor_loss = 0
+        critic_loss = 0
+        next_value = R
 
+        for value, log_policy, reward in list(zip(values, log_probs, rewards))[::-1]:
+            gae = gae * self.args.gamma
+            gae = gae + reward + self.args.gamma * next_value - value
+            next_value = value
+            actor_loss = actor_loss + log_policy * gae
+            R = R * self.args.gamma + reward
+            critic_loss = critic_loss + (R - value) ** 2 / 2
+
+        total_loss = -actor_loss + critic_loss - 0.01 * entropy_term
+        # writer.add_scalar("Train_{}/Loss".format(index), total_loss, curr_episode)
         self.optimizer.zero_grad()
-        ac_loss.backward(retain_graph=True)
-        self.optimizer.step()
+        total_loss.backward()
 
+        return actor_loss, critic_loss

@@ -22,8 +22,8 @@ def get_args():
     parser.add_argument('--gamma', type=float, default=0.9, help='discount factor for rewards')
     parser.add_argument('--tau', type=float, default=1.0, help='parameter for GAE')
     parser.add_argument('--beta', type=float, default=0.01, help='entropy coefficient')
-    parser.add_argument("--num_episodes", type=int, default=100, help="number of episodes")
-    parser.add_argument("--num_steps", type=int, default=100, help="number of episodes")
+    parser.add_argument("--num_episodes", type=int, default=10000, help="number of episodes")
+    parser.add_argument("--num_steps", type=int, default=1000, help="max number of steps per episode")
 
     args = parser.parse_args()
     return args
@@ -37,8 +37,7 @@ def train(args):
     """
 
     # create the environment
-    env = create_env(1, 1, "simple")
-    torch.autograd.set_detect_anomaly(True)
+    env = create_env(1, 1, args.action_type)
 
     # get environment variables
     num_inputs = env.observation_space.shape[0]
@@ -50,13 +49,13 @@ def train(args):
     # initialize algorithm
     a2c = A2C(actor_critic, args)
 
-    # initialize entropy term
-    entropy_term = 0
-
     for episode in range(args.num_episodes):
         log_probs = []
         values = []
         rewards = []
+
+        # initialize entropy term
+        entropy_term = 0
 
         state = torch.from_numpy(env.reset())
 
@@ -72,21 +71,23 @@ def train(args):
             # keep track of episode variables
             rewards.append(reward)
             values.append(value)
-            log_probs.append(log_prob[0, action])
+            log_probs.append(log_prob)
             entropy_term += entropy
 
             # overwrite state
             state = torch.from_numpy(new_state)
 
             # render the environment
-            env.render()
+            # env.render()
 
             if done or steps == args.num_steps - 1:
                 # todo print some information here
                 break
 
         # after an episode we need to update the parameters
-        a2c.update(state, values, rewards, log_probs, entropy_term)
+        actor_loss, critic_loss = a2c.update(state, values, rewards, log_probs, entropy_term)
+
+        print(f"Episode {episode} \t - Reward: {sum(rewards)} \t - Actor loss {actor_loss} \t - Critic loss {critic_loss}")
 
     return
 
